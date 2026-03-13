@@ -112,6 +112,10 @@ class Agent:
                         "reasoning": ai_response.reasoning
                     })
                     
+                    # Se a ação pode desencadear navegação, espera um pouco para estabilizar
+                    if ai_response.action.type in ["click", "type", "pressEnter"]:
+                        await asyncio.sleep(2)
+                    
                     if ai_response.action.type == "talk":
                         self.is_running = False
                         Logger.info(f"Agente falou: {ai_response.action.message}")
@@ -192,7 +196,7 @@ Responda APENAS com um JSON conforme o schema:
 
     def _format_elements(self, elements: List[Dict[str, Any]]) -> str:
         return "\n".join([
-            f"[{el['id']}] <{el['tag']}> {el['text']} selector=\"{el['selector']}\""
+            f"[{el['id']}] <{el['tag']}> text=\"{el['text']}\" role=\"{el['role']}\" type=\"{el['type']}\" placeholder=\"{el['placeholder']}\" selector=\"{el['selector']}\""
             for el in elements
         ])
 

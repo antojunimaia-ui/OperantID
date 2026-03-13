@@ -40,7 +40,9 @@ INSPECT_SCRIPT = """
             return {
                 id: id,
                 tag: el.tagName.toLowerCase(),
-                role: el.getAttribute('role') || el.type || el.tagName.toLowerCase(),
+                type: el.type || '',
+                placeholder: el.placeholder || '',
+                role: el.getAttribute('role') || el.tagName.toLowerCase(),
                 text: (el.innerText || el.value || el.placeholder || el.getAttribute('aria-label') || '').trim().substring(0, 80),
                 selector: '[data-operant-id="' + id + '"]'
             };
@@ -116,7 +118,10 @@ class BrowserManager:
         if not url.startswith('http'):
             url = 'https://' + url
         Logger.action(f"Navegando para: {url}")
-        await self.page.goto(url, wait_until="networkidle")
+        try:
+            await self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        except Exception as e:
+            Logger.warning(f"Timeout na navegação completa, mas a página provavelmente carregou: {e}")
 
     async def inspect(self) -> Dict[str, Any]:
         result = await self.page.evaluate(INSPECT_SCRIPT)

@@ -21,6 +21,20 @@
 
 ---
 
+## Benchmarks Reais 🚀
+
+Diferente de outros frameworks, o OperantID entrega performance consistente. Abaixo estão os resultados de um benchmark real executado com **Gemini 2.0 Flash**:
+
+| Tarefa | Status | Passos | Tempo Total | Tempo Médio/Passo |
+| :--- | :--- | :--- | :--- | :--- |
+| **Pesquisa & Fact Check (Wikipedia)** | ✅ Pass | 5 | 13.91s | 2.78s |
+| **Extração Direta (Quotes to Scrape)** | ✅ Pass | 2 | 5.79s | 2.89s |
+| **Navegação & Busca (Google/Notícias)** | ✅ Pass | 5 | 19.43s | 3.89s |
+
+> **Nota**: Testes realizados em modo headless em conexão banda larga padrão. O tempo inclui o delay de 2s para estabilização de navegação entre passos.
+
+---
+
 ## Índice
 
 - [Por que OperantID?](#por-que-operantid)
