@@ -19,19 +19,18 @@
 
 **OperantID** é um framework de raciocínio autônomo que orquestra Large Language Models e automação de navegadores para executar tarefas complexas na Web com precisão semântica. Diferentemente de ferramentas de RPA tradicionais baseadas em seletores estáticos frágeis, o OperantID utiliza um loop de percepção-raciocínio-ação contínuo para se adaptar dinamicamente a qualquer interface, estado de página ou fluxo de autenticação.
 
----
-
 ## Benchmarks Reais 🚀
 
-Diferente de outros frameworks, o OperantID entrega performance consistente. Abaixo estão os resultados de um benchmark real executado com **Gemini 2.0 Flash**:
+O OperantID é otimizado para velocidade e baixo consumo de tokens. Abaixo está a comparação real entre modelos **Gemini** em tarefas de navegação e extração:
 
-| Tarefa | Status | Passos | Tempo Total | Tempo Médio/Passo |
-| :--- | :--- | :--- | :--- | :--- |
-| **Pesquisa & Fact Check (Wikipedia)** | ✅ Pass | 5 | 13.91s | 2.78s |
-| **Extração Direta (Quotes to Scrape)** | ✅ Pass | 2 | 5.79s | 2.89s |
-| **Navegação & Busca (Google/Notícias)** | ✅ Pass | 5 | 19.43s | 3.89s |
+| Tarefa | **Gemini 2.0 Flash** | **Gemini 2.5 Flash** |
+| :--- | :---: | :---: |
+| **Navigation & Fact Check** | ✅ 7.1s (2 passos) | ✅ 24.0s (6 passos) |
+| **Direct Info Extraction** | ✅ 6.0s (2 passos) | ✅ 11.5s (2 passos) |
+| **Search & Navigate** | ❌ 65.8s (15 passos) | ✅ 49.1s (8 passos)* |
 
-> **Nota**: Testes realizados em modo headless em conexão banda larga padrão. O tempo inclui o delay de 2s para estabilização de navegação entre passos.
+> **\*Nota**: O modelo 2.5 Flash demonstrou maior resiliência ao identificar bloqueios de rede, concluindo a missão com relatórios detalhados mesmo sob CAPTCHA.
+> Todos os testes foram realizados em modo `headless` com delay de 2s para estabilidade.
 
 ---
 
