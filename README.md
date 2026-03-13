@@ -1,6 +1,9 @@
 # OperantID 🤖
 
 <p align="center">
+  <img src="operantid.PNG" alt="OperantID Banner" width="100%">
+</p>
+<p align="center">
   <b>Universal Autonomous AI Agent Framework for High-Performance Browser Navigation and Automated Reasoning</b>
 </p>
 
