@@ -1,6 +1,6 @@
 [project]
 name = "operantid"
-version = "0.1.1"
+version = "0.1.2"
 description = "Universal autonomous AI agent library for high-performance browser navigation and automated reasoning."
 authors = [
     {name = "Junior_7i", email = "antojunimaia@gmail.com"}

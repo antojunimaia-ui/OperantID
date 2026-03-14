@@ -9,51 +9,137 @@ setup_colors()
 INSPECT_SCRIPT = """
 (() => {
     try {
-        // Reset existing IDs and markers
+        // Reset existing IDs
         document.querySelectorAll('[data-operant-id]').forEach(el => el.removeAttribute('data-operant-id'));
-        document.querySelectorAll('.operant-marker').forEach(el => el.remove());
 
         const isVisible = (el) => {
             const rect = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
             return rect.width > 0 && rect.height > 0 && 
-                   rect.top >= 0 && rect.top <= window.innerHeight &&
-                   rect.left >= 0 && rect.left <= window.innerWidth &&
-                   window.getComputedStyle(el).visibility !== 'hidden' &&
-                   window.getComputedStyle(el).display !== 'none';
+                   rect.top >= -500 && rect.top <= window.innerHeight + 500 && // Pre-load buffer
+                   rect.left >= -500 && rect.left <= window.innerWidth + 500 &&
+                   style.visibility !== 'hidden' &&
+                   style.display !== 'none' &&
+                   style.opacity !== '0';
         };
 
-        const interactiveSelectors = [
-            'a', 'button', 'input', 'select', 'textarea', 
-            '[role="button"]', '[role="link"]', '[role="checkbox"]', 
-            '[role="tab"]', '[role="textbox"]', '[onclick]', '[contenteditable="true"]'
-        ];
+        const isInteractive = (el) => {
+            const tag = el.tagName.toLowerCase();
+            const role = el.getAttribute('role');
+            const style = window.getComputedStyle(el);
+            
+            // 1. Basic Interactive Tags
+            const interactiveTags = ['a', 'button', 'input', 'select', 'textarea', 'details', 'summary'];
+            if (interactiveTags.includes(tag)) return true;
 
-        const elements = Array.from(document.querySelectorAll(interactiveSelectors.join(',')))
-            .filter(isVisible)
-            .slice(0, 80);
+            // 2. ARIA Roles
+            const interactiveRoles = ['button', 'link', 'checkbox', 'menuitem', 'option', 'radio', 'tab', 'textbox', 'combobox', 'searchbox'];
+            if (interactiveRoles.includes(role)) return true;
 
-        const interactiveItems = elements.map((el, index) => {
-            const id = index + 1;
-            el.setAttribute('data-operant-id', id.toString());
+            // 3. JavaScript Handlers & Attributes
+            if (el.onclick || el.getAttribute('onclick') || el.hasAttribute('tabindex') || el.contentEditable === 'true') return true;
+
+            // 4. Cursor Style (The "Gold Standard" from Browser Use)
+            if (style.cursor === 'pointer') return true;
+
+            // 5. Search Indicators (Heuristic)
+            const searchIndicators = ['search', 'find', 'lookup', 'query', 'magnify'];
+            const classIdText = (el.className + ' ' + el.id).toLowerCase();
+            if (searchIndicators.some(ind => classIdText.includes(ind))) return true;
+
+            // 6. Icon Detection (Small but tagged)
             const rect = el.getBoundingClientRect();
+            if (rect.width >= 10 && rect.width <= 60 && rect.height >= 10 && rect.height <= 60) {
+                if (el.hasAttribute('aria-label') || el.hasAttribute('title')) return true;
+            }
 
-            return {
-                id: id,
-                tag: el.tagName.toLowerCase(),
-                type: el.type || '',
-                placeholder: el.placeholder || '',
-                role: el.getAttribute('role') || el.tagName.toLowerCase(),
-                text: (el.innerText || el.value || el.placeholder || el.getAttribute('aria-label') || '').trim().substring(0, 80),
-                selector: '[data-operant-id="' + id + '"]'
-            };
-        });
+            return false;
+        };
+
+        // Efficient DOM traversal
+        const allElements = document.querySelectorAll('*');
+        const interactiveItems = [];
+        let count = 0;
+
+        // Visual Markers Container
+        let markerContainer = document.getElementById('operant-marker-container');
+        if (markerContainer) markerContainer.remove();
+        markerContainer = document.createElement('div');
+        markerContainer.id = 'operant-marker-container';
+        markerContainer.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2147483647;
+        `;
+        document.body.appendChild(markerContainer);
+
+        for (let el of allElements) {
+            if (isVisible(el) && isInteractive(el)) {
+                count++;
+                const id = count;
+                el.setAttribute('data-operant-id', id.toString());
+                const rect = el.getBoundingClientRect();
+                const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+                const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+
+                // Create visual box
+                const marker = document.createElement('div');
+                marker.style.cssText = `
+                    position: absolute;
+                    left: ${rect.left + scrollX}px;
+                    top: ${rect.top + scrollY}px;
+                    width: ${rect.width}px;
+                    height: ${rect.height}px;
+                    border: 1px solid #38bdf8;
+                    background-color: rgba(56, 189, 248, 0.1);
+                    pointer-events: none;
+                    border-radius: 2px;
+                    box-sizing: border-box;
+                `;
+
+                // Create numeric label
+                const label = document.createElement('div');
+                label.innerText = id;
+                label.style.cssText = `
+                    position: absolute;
+                    top: -10px;
+                    left: -10px;
+                    background: #38bdf8;
+                    color: black;
+                    font-size: 10px;
+                    font-weight: bold;
+                    padding: 1px 5px;
+                    border-radius: 4px;
+                    line-height: 1;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+                `;
+                marker.appendChild(label);
+                markerContainer.appendChild(marker);
+
+                interactiveItems.push({
+                    id: id,
+                    tag: el.tagName.toLowerCase(),
+                    type: el.type || '',
+                    placeholder: el.placeholder || '',
+                    role: el.getAttribute('role') || el.tagName.toLowerCase(),
+                    text: (el.innerText || el.value || el.placeholder || el.getAttribute('aria-label') || el.getAttribute('title') || '').trim().substring(0, 100),
+                    selector: '[data-operant-id="' + id + '"]'
+                });
+
+                if (count >= 100) break; // Token optimization limit
+            }
+        }
 
         const getSummary = () => {
-            return Array.from(document.querySelectorAll('h1, h2, p'))
+            return Array.from(document.querySelectorAll('h1, h2, h3'))
                 .filter(isVisible)
                 .slice(0, 10)
                 .map(el => el.innerText.trim().substring(0, 100))
-                .join('|');
+                .join(' | ');
         };
 
         return {
@@ -109,10 +195,16 @@ class BrowserManager:
         self.pages = [self.page]
 
     async def stop(self):
-        if self.browser:
-            await self.browser.close()
-        if self.playwright:
-            await self.playwright.stop()
+        try:
+            if self.browser:
+                await self.browser.close()
+        except:
+            pass
+        try:
+            if self.playwright:
+                await self.playwright.stop()
+        except:
+            pass
 
     async def navigate(self, url: str):
         if not url.startswith('http'):

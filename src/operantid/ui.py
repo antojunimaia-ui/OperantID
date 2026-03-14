@@ -2,13 +2,18 @@ import os
 import json
 import asyncio
 import threading
-import sys
 import io
+import sys
+import logging
 from flask import Flask, render_template_string, request, jsonify
 from .agent import Agent
 
+# Disable Flask/Werkzeug logs for cleaner terminal
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
+
 # Premium UI template with Tabs
-HTML_TEMPLATE = """
+HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -43,7 +48,7 @@ HTML_TEMPLATE = """
             border: none;
             box-shadow: none;
         }
-        .header { text-align: left; margin-bottom: 40px; border-bottom: 2px solid var(--border); padding-bottom: 20px; }
+        .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid var(--border); padding-bottom: 20px; }
         h1 { font-size: 3rem; margin: 0; font-weight: 700; color: white; }
         .subtitle { color: #94a3b8; font-size: 1.1rem; margin-top: 10px; }
 
@@ -144,8 +149,7 @@ HTML_TEMPLATE = """
 <body>
     <div class="container">
         <div class="header">
-            <h1>OperantID</h1>
-            <p class="subtitle">Nexus de Agentes Autônomos</p>
+            <h1>🌐 OperantID WebUI</h1>
         </div>
 
         <div class="tabs-nav">
@@ -352,7 +356,8 @@ HTML_TEMPLATE = """
             logs.innerHTML = '';
             
             if (config.streaming) {
-                document.getElementById('browserStream').style.display = 'block';
+                const canvas = document.getElementById('vncCanvas');
+                if (canvas) canvas.style.display = 'block';
                 document.getElementById('streamPlaceholder').style.display = 'none';
                 startStreaming();
             }

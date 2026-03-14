@@ -192,7 +192,34 @@ Responda APENAS com um JSON conforme o schema:
             )
             content = response.choices[0].message.content
 
-        return AIResponse.model_validate_json(content)
+        return self._parse_ai_response(content)
+
+    def _parse_ai_response(self, content: str) -> AIResponse:
+        try:
+            # 1. Clean markdown code blocks if present
+            content = content.strip()
+            if content.startswith("```"):
+                # Remove first and last lines if they are triple backticks
+                lines = content.split("\n")
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].startswith("```"):
+                    lines = lines[:-1]
+                content = "\n".join(lines).strip()
+            
+            # 2. Parse JSON
+            data = json.loads(content)
+            
+            # 3. Handle list wrapping (sometimes models return [{...}])
+            if isinstance(data, list) and len(data) > 0:
+                data = data[0]
+            
+            # 4. Final validation
+            return AIResponse.model_validate(data)
+        except Exception as e:
+            Logger.error(f"Erro ao parsear resposta da IA: {e}")
+            Logger.error(f"Conteúdo original: {content}")
+            raise e
 
     def _format_elements(self, elements: List[Dict[str, Any]]) -> str:
         return "\n".join([
