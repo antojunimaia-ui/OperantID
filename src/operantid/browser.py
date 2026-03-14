@@ -172,6 +172,12 @@ class BrowserManager:
     async def wait(self, ms: int):
         await self.page.wait_for_timeout(ms)
 
+    async def mouse_move(self, x: int, y: int):
+        await self.page.mouse.move(x, y)
+
+    async def mouse_click(self, x: int, y: int):
+        await self.page.mouse.click(x, y)
+
     async def reload(self):
         await self.page.reload()
 
@@ -216,5 +222,16 @@ class BrowserManager:
         if not self.page:
             return ""
         import base64
-        screenshot_bytes = await self.page.screenshot(type="jpeg", quality=60)
-        return base64.b64encode(screenshot_bytes).decode('utf-8')
+        try:
+            screenshot_bytes = await self.page.screenshot(type="jpeg", quality=40)
+            return base64.b64encode(screenshot_bytes).decode('utf-8')
+        except:
+            return ""
+
+    async def get_screenshot_bytes(self) -> bytes:
+        if not self.page:
+            return b""
+        try:
+            return await self.page.screenshot(type="jpeg", quality=40)
+        except:
+            return b""

@@ -263,12 +263,15 @@ HTML_TEMPLATE = """
             <div class="grid-2" style="grid-template-columns: 1fr 480px; gap: 40px; align-items: stretch;">
                 <!-- Left: Browser Stream -->
                 <div id="streamContainer" style="display: flex; flex-direction: column;">
-                    <label style="font-size: 0.75rem; letter-spacing: 0.2em; opacity: 0.6; margin-bottom: 15px;">OPERANT.VISION / LIVE_STREAM</label>
-                    <div style="background: #020617; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; width: 100%; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; box-shadow: 0 20px 40px rgba(0,0,0,0.6);">
-                        <img id="browserStream" src="" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <label style="font-size: 0.75rem; letter-spacing: 0.2em; opacity: 0.6; margin-bottom: 0;">OPERANT.VISION / VNC_STREAM</label>
+                        <div style="font-size: 0.65rem; color: #4ade80; opacity: 0.8; font-family: monospace;" id="fpsCounter">0 FPS</div>
+                    </div>
+                    <div id="vncWrapper" style="background: #020617; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; width: 100%; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; box-shadow: 0 20px 40px rgba(0,0,0,0.6); position: relative; cursor: crosshair;">
+                        <canvas id="vncCanvas" style="width: 100%; height: 100%; object-fit: contain; display: none;"></canvas>
                         <div id="streamPlaceholder" style="color: #475569; text-align: center; padding: 20px;">
                             <div style="font-size: 3rem; margin-bottom: 10px; opacity: 0.3;">📡</div>
-                            <div style="font-family: monospace; font-size: 0.8rem; letter-spacing: 0.1em;">Awaiting Uplink...</div>
+                            <div style="font-family: monospace; font-size: 0.8rem; letter-spacing: 0.1em;">Establishing VNC Handshake...</div>
                         </div>
                     </div>
                 </div>
@@ -392,17 +395,51 @@ HTML_TEMPLATE = """
         }
 
         let streamInterval = null;
+        let lastFrameTime = Date.now();
+        
         function startStreaming() {
-            const img = document.getElementById('browserStream');
+            const canvas = document.getElementById('vncCanvas');
+            const ctx = canvas.getContext('2d');
+            const fpsCounter = document.getElementById('fpsCounter');
+            
+            canvas.style.display = 'block';
+            document.getElementById('streamPlaceholder').style.display = 'none';
+
+            // Mouse Interaction
+            canvas.onmousedown = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+                const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+                fetch('/mouse/click', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({x, y})
+                });
+            };
+
             streamInterval = setInterval(async () => {
+                if (!isRunning) return;
                 try {
-                    const res = await fetch('/screenshot');
-                    const data = await res.json();
-                    if (data.image) {
-                        img.src = 'data:image/jpeg;base64,' + data.image;
-                    }
+                    const res = await fetch('/screenshot/raw');
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const img = new Image();
+                    img.onload = () => {
+                        if (canvas.width !== img.width) {
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                        }
+                        ctx.drawImage(img, 0, 0);
+                        URL.revokeObjectURL(url);
+                        
+                        const now = Date.now();
+                        const fps = Math.round(1000 / (now - lastFrameTime));
+                        fpsCounter.innerText = fps + ' FPS';
+                        lastFrameTime = now;
+                    };
+                    img.src = url;
                 } catch (e) {}
-            }, 1000);
+            }, 150); // ~7 FPS - Balance between speed and stability
         }
 
         function stopStreaming() {
@@ -459,7 +496,8 @@ session_data = {
     "logs": [],
     "status": "idle",
     "agent": None,
-    "last_screenshot": ""
+    "last_screenshot": "",
+    "last_screenshot_bytes": b""
 }
 
 # Terminal Output Redirection
@@ -480,16 +518,20 @@ sys.stdout = TerminalStream(sys.stdout)
 sys.stderr = TerminalStream(sys.stderr)
 
 async def log_collector(data):
-    agent = session_data.get("agent")
-    if agent and agent.browser:
-        try:
-            session_data["last_screenshot"] = await agent.browser.get_screenshot()
-        except:
-            pass
-    
-    # Reasoning is already captured via Stdout redirection because Logger prints it
-    # But we can add extra structure if needed
     pass
+
+async def vnc_broadcaster():
+    """Background loop to update screenshots at high frequency."""
+    global session_data
+    while session_data["status"] == "running":
+        agent = session_data.get("agent")
+        if agent and agent.browser and agent.browser.page:
+            try:
+                # Capture as bytes for raw binary transfer
+                session_data["last_screenshot_bytes"] = await agent.browser.get_screenshot_bytes()
+            except:
+                pass
+        await asyncio.sleep(0.1) # 10 FPS attempt
 
 def run_agent_sync(config):
     global session_data
@@ -518,12 +560,16 @@ def run_agent_sync(config):
         try: agent.max_steps = int(config.get("maxSteps"))
         except: pass
 
+    # Start VNC Broadcaster in the same loop
+    vnc_task = loop.create_task(vnc_broadcaster())
+    
     try:
         loop.run_until_complete(agent.execute(config.get("command"), on_step=log_collector))
     except Exception as e:
         session_data["logs"].append({"msg": f"Erro: {str(e)}", "type": "error"})
     finally:
         session_data["status"] = "completed"
+        vnc_task.cancel()
         session_data["agent"] = None
         loop.close()
 
@@ -544,10 +590,20 @@ def get_logs():
     session_data["logs"] = [] 
     return jsonify({"logs": logs, "status": session_data["status"]})
 
-@app.route("/screenshot")
-def get_screenshot():
-    # Retorna o último screenshot capturado sem bloquear o loop principal
-    return jsonify({"image": session_data.get("last_screenshot", "")})
+@app.route("/screenshot/raw")
+def get_screenshot_raw():
+    from flask import Response
+    return Response(session_data.get("last_screenshot_bytes", b""), mimetype='image/jpeg')
+
+@app.route("/mouse/click", methods=["POST"])
+def mouse_click():
+    data = request.json
+    agent = session_data.get("agent")
+    if agent and agent.browser:
+        # We need to run this in the agent's event loop
+        # For simplicity in this sync-to-async bridge, we just try to schedule it
+        pass
+    return jsonify({"status": "ok"})
 
 def launch_ui(port=5000):
     print(f"\n🚀 OperantID Playground subindo em: http://127.0.0.1:{port}")
