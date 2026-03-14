@@ -21,7 +21,7 @@ TASKS = [
     }
 ]
 
-MODELS = ["gemini-2.0-flash", "gemini-2.5-flash"]
+MODELS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-3.1-pro-preview"]
 
 async def run_benchmark():
     api_key = os.getenv("GOOGLE_API_KEY")
@@ -63,7 +63,13 @@ async def run_benchmark():
                 print(f"  {'✅' if success else '❌'} | {steps} steps | {duration:.2f}s")
             except Exception as e:
                 print(f"  Error: {e}")
-            await asyncio.sleep(2) # Cooldown
+                model_results.append({
+                    "task": task["name"],
+                    "success": False,
+                    "steps": 0,
+                    "time": time.time() - start_time
+                })
+            await asyncio.sleep(5) # Cooldown
             
         all_results[model_name] = model_results
 

@@ -23,13 +23,13 @@
 
 O OperantID é otimizado para velocidade e baixo consumo de tokens. Abaixo está a comparação real entre modelos **Gemini** em tarefas de navegação e extração:
 
-| Tarefa | **Gemini 2.0 Flash** | **Gemini 2.5 Flash** |
-| :--- | :---: | :---: |
-| **Navigation & Fact Check** | ✅ 7.1s (2 passos) | ✅ 24.0s (6 passos) |
-| **Direct Info Extraction** | ✅ 6.0s (2 passos) | ✅ 11.5s (2 passos) |
-| **Search & Navigate** | ❌ 65.8s (15 passos) | ✅ 49.1s (8 passos)* |
+| Tarefa | **Gemini 2.0 Flash** | **Gemini 2.5 Flash** | **Gemini 3.1 Pro** |
+| :--- | :---: | :---: | :---: |
+| **Navigation & Fact Check** | ✅ 9.0s (3 passos) | ❌ 43.9s (15 passos) | ❌ 17.3s (fail)* |
+| **Direct Info Extraction** | ✅ 5.6s (2 passos) | ✅ 10.9s (2 passos) | ✅ 12.8s (2 passos) |
+| **Search & Navigate** | ❌ 65.7s (15 passos) | ✅ 18.6s (4 passos) | ❌ 95.4s (fail)* |
 
-> **\*Nota**: O modelo 2.5 Flash demonstrou maior resiliência ao identificar bloqueios de rede, concluindo a missão com relatórios detalhados mesmo sob CAPTCHA.
+> **\*Nota**: O modelo 3.1 Pro Preview apresentou inconsistências no formato de resposta JSON durante os testes automatizados, resultando em falhas de validação. O modelo 2.5 Flash continua sendo o mais recomendado para tarefas que exigem alta resiliência e bypass de bot.
 > Todos os testes foram realizados em modo `headless` com delay de 2s para estabilidade.
 
 ---
