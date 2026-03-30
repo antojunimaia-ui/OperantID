@@ -1,6 +1,6 @@
 [project]
 name = "operantid"
-version = "0.1.2"
+version = "0.1.3"
 description = "Universal autonomous AI agent library for high-performance browser navigation and automated reasoning."
 authors = [
     {name = "Junior_7i", email = "antojunimaia@gmail.com"}
@@ -32,6 +32,9 @@ dependencies = [
     "colorama>=0.4.6",
     "flask>=3.0.0"
 ]
+
+[project.scripts]
+operant = "operantid.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/antojunimaia-ui/OperantID"

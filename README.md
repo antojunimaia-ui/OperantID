@@ -514,17 +514,17 @@ O OperantID vem com uma interface web profissional integrada que permite usar o 
 
 ### Como usar
 
-```python
-from operantid import launch_ui
+A maneira mais rápida de iniciar o painel web é usando nosso comando de terminal oficial. Basta abrir seu terminal e rodar:
 
-# Sobe o servidor na porta 5000 (padrão)
-launch_ui()
+```bash
+# Inicia a UI na porta 5000 (padrão)
+operant webui
 
-# Ou em uma porta customizada
-launch_ui(port=8080)
+# Opcional: Inicia a UI em uma porta customizada
+operant webui --port 8080
 ```
 
-Acesse `http://127.0.0.1:5000` no seu navegador.
+E então acesse `http://127.0.0.1:5000` no seu navegador.
 
 ### Aba Config
 
@@ -757,7 +757,9 @@ async def main():
 asyncio.run(main())
 ```
 
-### Usando a WebUI no seu Projeto
+### Usando a WebUI via Código (Programaticamente)
+
+Caso você queira acionar a interface Web por dentro de um script Python existente:
 
 ```python
 from operantid import launch_ui
