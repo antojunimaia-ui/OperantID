@@ -8,7 +8,7 @@ authors = [
 license = "MIT"
 readme = "README.md"
 requires-python = ">=3.10"
-keywords = ["ai", "agent", "browser", "automation", "llm", "playwright", "gemini", "openai", "mistral", "autonomous"]
+keywords = ["ai", "agent", "browser", "automation", "llm", "playwright", "gemini", "openai", "mistral", "maritaca", "zhipu", "autonomous"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

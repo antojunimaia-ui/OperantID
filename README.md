@@ -46,6 +46,8 @@ O OperantID é otimizado para velocidade e baixo consumo de tokens. Abaixo está
   - [OpenRouter](#openrouter)
   - [Ollama (Local)](#ollama-local)
   - [Mistral AI](#mistral-ai)
+  - [Maritaca AI (Sabiá)](#maritaca-ai-sabiá)
+  - [Zhipu AI (GLM)](#zhipu-ai-glm)
 - [Guia Completo de Uso](#guia-completo-de-uso)
   - [Inicialização do Agente](#inicialização-do-agente)
   - [Controle de Headless e Visibilidade](#controle-de-headless-e-visibilidade)
@@ -184,6 +186,43 @@ asyncio.run(main())
 
 ---
 
+## Uso como Tool-Kit (Modo Agente Externo) 🛠️
+
+Se você já possui um agente (ou orquestrador) e quer apenas dar a ele a capacidade de navegar na web, você pode usar o OperantID em modo **Tool-Kit**. Isso permite que o seu próprio agente controle o navegador usando as ferramentas e o contexto fornecidos pela biblioteca.
+
+```python
+import asyncio
+from operantid import BrowserManager, BrowserToolKit
+
+async def main():
+    # 1. Inicializa o Navegador e o Tool-Kit
+    browser = BrowserManager(headless=False)
+    toolkit = BrowserToolKit(browser)
+    
+    await browser.start()
+    
+    try:
+        # 2. Obtenha as definições de ferramentas (formato OpenAI/Gemini)
+        # Passe isso para o seu LLM na lista de 'tools'
+        tools = toolkit.get_tools()
+        
+        # 3. Obtenha o contexto atual da página para o seu prompt
+        await browser.navigate("https://news.ycombinator.com")
+        context = await toolkit.get_context()
+        print(f"URL Atual: {context['url']}")
+        print(f"Elementos interativos:\n{context['interactive_elements']}")
+        
+        # 4. Quando seu agente decidir usar uma ferramenta:
+        # result = await toolkit.execute_tool("click", {"selector": "[data-operant-id='1']"})
+        
+    finally:
+        await browser.stop()
+
+asyncio.run(main())
+```
+
+---
+
 ## Provedores de IA
 
 O OperantID abstrai a comunicação com qualquer LLM através de um único parâmetro `provider`.
@@ -243,6 +282,30 @@ agent = Agent(
     api_key="MISTRAL_API_KEY",
     provider="mistral",
     model="mistral-large-latest"  # ou codestral, mistral-small
+)
+```
+
+### Maritaca AI (Sabiá)
+
+O OperantID suporta nativamente os modelos brasileiros da Maritaca AI:
+
+```python
+agent = Agent(
+    api_key="MARITACA_API_KEY",
+    provider="maritaca",
+    model="sabia-3"  # Modelo flagship
+)
+```
+
+### Zhipu AI (GLM)
+
+Suporte aos modelos GLM da Zhipu AI:
+
+```python
+agent = Agent(
+    api_key="ZHIPU_API_KEY",
+    provider="zhipu",
+    model="glm-4-plus"
 )
 ```
 

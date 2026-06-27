@@ -5,8 +5,9 @@ import threading
 import io
 import sys
 import logging
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, render_template_string, request, jsonify, send_file
 from .agent import Agent
+from .utils import ScriptExporter
 
 # Disable Flask/Werkzeug logs for cleaner terminal
 log = logging.getLogger('werkzeug')
@@ -142,6 +143,98 @@ HTML_TEMPLATE = r"""
         .status-running { background: #064e3b; color: #34d399; animation: pulse 2s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
         
+        /* Vision Component (Browser + Timeline) */
+        .vision-container {
+            background: #020617;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+        }
+        #vncWrapper {
+            background: #000;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: crosshair;
+            border-bottom: 1px solid var(--border);
+        }
+        .timeline-wrapper {
+            background: rgba(255,255,255,0.02);
+            padding: 15px;
+        }
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .timeline-scroll {
+            display: flex;
+            gap: 15px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--primary) #020617;
+        }
+        .timeline-item {
+            min-width: 140px;
+            max-width: 140px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            position: relative;
+        }
+        .timeline-item:hover { transform: translateY(-5px); }
+        .timeline-item img {
+            width: 100%;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 2px solid transparent;
+        }
+        .timeline-item.active img { border-color: var(--primary); }
+        .timeline-item .step-number {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background: var(--primary);
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .timeline-item .step-label {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .live-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            color: #ef4444;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: rgba(239, 68, 68, 0.1);
+        }
+        .live-indicator.inactive {
+            color: #94a3b8;
+            background: #1e293b;
+        }
+        .live-dot { width: 8px; height: 8px; background: currentColor; border-radius: 50%; }
+
         .switch-group { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.03); padding: 12px 18px; border-radius: 14px; }
         .switch-group input[type="checkbox"] { width: auto; cursor: pointer; }
     </style>
@@ -165,6 +258,13 @@ HTML_TEMPLATE = r"""
                 <div class="form-group">
                     <label>Provedor de IA</label>
                     <select id="provider">
+                        <option value="openrouter">OpenRouter (Recomendado)</option>
+                        <option value="maritaca">Maritaca AI (Sabiá)</option>
+                        <option value="zhipu">Zhipu AI (GLM)</option>
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="moonshot">Moonshot AI (Kimi)</option>
+                        <option value="xai">xAI (Grok)</option>
+                        <option value="fireworks">Fireworks AI</option>
                         <option value="gemini">Google Gemini</option>
                         <option value="openai">OpenAI / Compatíveis</option>
                         <option value="mistral">Mistral AI</option>
@@ -271,11 +371,28 @@ HTML_TEMPLATE = r"""
                         <label style="font-size: 0.75rem; letter-spacing: 0.2em; opacity: 0.6; margin-bottom: 0;">OPERANT.VISION / VNC_STREAM</label>
                         <div style="font-size: 0.65rem; color: #4ade80; opacity: 0.8; font-family: monospace;" id="fpsCounter">0 FPS</div>
                     </div>
-                    <div id="vncWrapper" style="background: #020617; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; width: 100%; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; box-shadow: 0 20px 40px rgba(0,0,0,0.6); position: relative; cursor: crosshair;">
-                        <canvas id="vncCanvas" style="width: 100%; height: 100%; object-fit: contain; display: none;"></canvas>
-                        <div id="streamPlaceholder" style="color: #475569; text-align: center; padding: 20px;">
-                            <div style="font-size: 3rem; margin-bottom: 10px; opacity: 0.3;">📡</div>
-                            <div style="font-family: monospace; font-size: 0.8rem; letter-spacing: 0.1em;">Establishing VNC Handshake...</div>
+                    
+                    <div class="vision-container">
+                        <div id="vncWrapper">
+                            <canvas id="vncCanvas" style="width: 100%; height: 100%; object-fit: contain; display: none;"></canvas>
+                            <div id="streamPlaceholder" style="color: #475569; text-align: center; padding: 20px;">
+                                <div style="font-size: 3rem; margin-bottom: 10px; opacity: 0.3;">📡</div>
+                                <div style="font-family: monospace; font-size: 0.8rem; letter-spacing: 0.1em;">Establishing VNC Handshake...</div>
+                            </div>
+                        </div>
+
+                        <!-- Timeline -->
+                        <div class="timeline-wrapper">
+                            <div class="timeline-header">
+                                <label style="font-size: 0.7rem; letter-spacing: 0.1em; opacity: 0.6; margin: 0;">MISSION_TIMELINE</label>
+                                <div id="liveIndicator" class="live-indicator" onclick="goLive()">
+                                    <div class="live-dot"></div>
+                                    LIVE
+                                </div>
+                            </div>
+                            <div id="timelineScroll" class="timeline-scroll">
+                                <!-- Steps will be injected here -->
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -290,7 +407,12 @@ HTML_TEMPLATE = r"""
                     <div style="background: var(--input-bg); border: 1px solid var(--border); padding: 5px; border-radius: 8px; margin-bottom: 15px;">
                         <textarea id="command" rows="3" style="background: transparent; border: none; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; resize: none;" placeholder="Defina a missão..."></textarea>
                     </div>
-                    <button id="runBtn" onclick="runAgent()" style="width: 100%; margin-bottom: 25px;">LAUNCH_OPERATIONS</button>
+                    <div style="display: flex; gap: 10px; margin-bottom: 25px;">
+                        <button id="runBtn" onclick="runAgent()" style="flex-grow: 1;">LAUNCH_OPERATIONS</button>
+                        <button id="exportBtn" onclick="exportScript()" style="background: #1e293b; border: 1px solid var(--border); color: #94a3b8; padding: 0 20px; border-radius: 8px; font-weight: 600; display: none;" title="Exportar para Playwright">
+                            <span style="font-size: 1.2rem;">📥</span>
+                        </button>
+                    </div>
                     
                     <label style="font-size: 0.75rem; letter-spacing: 0.2em; opacity: 0.6; margin-bottom: 10px;">TELEMETRY_LOGS</label>
                     <div id="logs" style="flex-grow: 1; height: 0; min-height: 200px; margin-top: 0;">
@@ -303,6 +425,7 @@ HTML_TEMPLATE = r"""
 
     <script>
         let isRunning = false;
+        let isLive = true;
 
         function switchTab(tabId, event) {
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -351,9 +474,12 @@ HTML_TEMPLATE = r"""
             isRunning = true;
             btn.disabled = true;
             btn.innerText = '🤖 EM CAMPO...';
+            document.getElementById('exportBtn').style.display = 'none';
             status.innerText = 'RUNNING';
             status.className = 'status-badge status-running';
             logs.innerHTML = '';
+            document.getElementById('timelineScroll').innerHTML = '';
+            goLive();
             
             if (config.streaming) {
                 const canvas = document.getElementById('vncCanvas');
@@ -384,6 +510,9 @@ HTML_TEMPLATE = r"""
                     if (data.logs && data.logs.length > 0) {
                         data.logs.forEach(log => {
                             addLog(log.msg, log.type, log.reasoning);
+                            if (log.step) {
+                                addTimelineStep(log.step, log.reasoning);
+                            }
                         });
                     }
 
@@ -423,7 +552,7 @@ HTML_TEMPLATE = r"""
             };
 
             streamInterval = setInterval(async () => {
-                if (!isRunning) return;
+                if (!isRunning || !isLive) return;
                 try {
                     const res = await fetch('/screenshot/raw');
                     const blob = await res.blob();
@@ -449,6 +578,56 @@ HTML_TEMPLATE = r"""
 
         function stopStreaming() {
             if (streamInterval) clearInterval(streamInterval);
+        }
+
+        function addTimelineStep(step, reasoning) {
+            const scroll = document.getElementById('timelineScroll');
+            const item = document.createElement('div');
+            item.className = 'timeline-item';
+            item.onclick = () => viewHistoricalStep(step, item);
+            
+            const shortReason = reasoning ? reasoning.substring(0, 30) + '...' : 'Inspecionando...';
+            
+            item.innerHTML = `
+                <div class="step-number">#${step}</div>
+                <img src="/screenshot/step/${step}" onerror="this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='">
+                <div class="step-label">${shortReason}</div>
+            `;
+            
+            scroll.appendChild(item);
+            scroll.scrollLeft = scroll.scrollWidth;
+        }
+
+        async function viewHistoricalStep(step, element) {
+            isLive = false;
+            document.getElementById('liveIndicator').classList.add('inactive');
+            
+            // Highlight active item
+            document.querySelectorAll('.timeline-item').forEach(i => i.classList.remove('active'));
+            element.classList.add('active');
+
+            const canvas = document.getElementById('vncCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            try {
+                const res = await fetch(`/screenshot/step/${step}`);
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const img = new Image();
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0);
+                    URL.revokeObjectURL(url);
+                };
+                img.src = url;
+            } catch (e) {
+                console.error("Erro ao carregar passo histórico", e);
+            }
+        }
+
+        function goLive() {
+            isLive = true;
+            document.getElementById('liveIndicator').classList.remove('inactive');
+            document.querySelectorAll('.timeline-item').forEach(i => i.classList.remove('active'));
         }
 
         function addLog(msg, type, reasoning = null) {
@@ -486,10 +665,16 @@ HTML_TEMPLATE = r"""
             isRunning = false;
             const btn = document.getElementById('runBtn');
             const status = document.getElementById('status');
+            const exportBtn = document.getElementById('exportBtn');
             btn.disabled = false;
             btn.innerText = '🚀 REINICIAR MISSÃO';
+            exportBtn.style.display = 'block';
             status.innerText = 'IDLE';
             status.className = 'status-badge status-idle';
+        }
+
+        function exportScript() {
+            window.location.href = '/export/playwright';
         }
     </script>
 </body>
@@ -502,7 +687,10 @@ session_data = {
     "status": "idle",
     "agent": None,
     "last_screenshot": "",
-    "last_screenshot_bytes": b""
+    "last_screenshot_bytes": b"",
+    "history_screenshots": {},
+    "last_config": {},
+    "last_history": []
 }
 
 # Terminal Output Redirection
@@ -523,7 +711,24 @@ sys.stdout = TerminalStream(sys.stdout)
 sys.stderr = TerminalStream(sys.stderr)
 
 async def log_collector(data):
-    pass
+    step = data.get("step")
+    reasoning = data.get("reasoning")
+    agent = session_data.get("agent")
+    
+    # Capture screenshot for the timeline
+    if agent and agent.browser:
+        try:
+            shot = await agent.browser.get_screenshot_bytes()
+            session_data["history_screenshots"][step] = shot
+            # Add a special log entry that the UI will use to trigger timeline update
+            session_data["logs"].append({
+                "msg": f"Step {step} captured", 
+                "type": "system", 
+                "step": step, 
+                "reasoning": reasoning
+            })
+        except:
+            pass
 
 async def vnc_broadcaster():
     """Background loop to update screenshots at high frequency."""
@@ -542,6 +747,9 @@ def run_agent_sync(config):
     global session_data
     session_data["status"] = "running"
     session_data["logs"] = []
+    session_data["history_screenshots"] = {}
+    session_data["last_config"] = config.get("browser", {})
+    session_data["last_history"] = []
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -570,6 +778,7 @@ def run_agent_sync(config):
     
     try:
         loop.run_until_complete(agent.execute(config.get("command"), on_step=log_collector))
+        session_data["last_history"] = agent.history
     except Exception as e:
         session_data["logs"].append({"msg": f"Erro: {str(e)}", "type": "error"})
     finally:
@@ -600,6 +809,12 @@ def get_screenshot_raw():
     from flask import Response
     return Response(session_data.get("last_screenshot_bytes", b""), mimetype='image/jpeg')
 
+@app.route("/screenshot/step/<int:step_id>")
+def get_screenshot_step(step_id):
+    from flask import Response
+    shot = session_data["history_screenshots"].get(step_id, b"")
+    return Response(shot, mimetype='image/jpeg')
+
 @app.route("/mouse/click", methods=["POST"])
 def mouse_click():
     data = request.json
@@ -609,6 +824,23 @@ def mouse_click():
         # For simplicity in this sync-to-async bridge, we just try to schedule it
         pass
     return jsonify({"status": "ok"})
+
+@app.route("/export/playwright")
+def export_playwright():
+    history = session_data.get("last_history", [])
+    config = session_data.get("last_config", {})
+    
+    if not history:
+        return "Nenhum histórico disponível para exportar.", 400
+        
+    code = ScriptExporter.generate_playwright_code(history, config)
+    
+    return send_file(
+        io.BytesIO(code.encode()),
+        mimetype='text/x-python',
+        as_attachment=True,
+        download_name='operant_script.py'
+    )
 
 def launch_ui(port=5000):
     print(f"\n🚀 OperantID Playground subindo em: http://127.0.0.1:{port}")

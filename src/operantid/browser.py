@@ -216,9 +216,27 @@ class BrowserManager:
             Logger.warning(f"Timeout na navegação completa, mas a página provavelmente carregou: {e}")
 
     async def inspect(self) -> Dict[str, Any]:
-        result = await self.page.evaluate(INSPECT_SCRIPT)
-        Logger.inspect(result)
-        return result
+        try:
+            # Wait for the page to be at least in a basic loaded state
+            await self.page.wait_for_load_state("domcontentloaded", timeout=5000)
+        except:
+            pass
+
+        try:
+            result = await self.page.evaluate(INSPECT_SCRIPT)
+            Logger.inspect(result)
+            return result
+        except Exception as e:
+            if "Execution context was destroyed" in str(e) or "Target closed" in str(e):
+                Logger.warning("Contexto destruído durante inspeção, aguardando estabilização...")
+                await asyncio.sleep(2)
+                try:
+                    result = await self.page.evaluate(INSPECT_SCRIPT)
+                    return result
+                except:
+                    return {"url": self.page.url, "title": "Carregando...", "interactiveElements": []}
+            Logger.error(f"Erro na inspeção: {e}")
+            return {"url": self.page.url, "title": "Erro", "interactiveElements": []}
 
     async def click(self, selector: str, text: Optional[str] = None):
         try:

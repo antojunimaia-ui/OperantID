@@ -51,11 +51,35 @@ class Agent:
             self.model = model or "gemini-1.5-flash"
             genai.configure(api_key=api_key)
             self.client = genai.GenerativeModel(self.model)
-        elif self.provider == "openai":
-            self.model = model or "gpt-4o"
-            self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        elif self.provider in ["openai", "openrouter", "fireworks", "xai", "deepseek", "moonshot", "maritaca", "zhipu"]:
+            if self.provider == "openai":
+                self.model = model or "gpt-4o"
+                actual_base_url = base_url
+            elif self.provider == "openrouter":
+                self.model = model or "google/gemini-2.0-flash-001"
+                actual_base_url = base_url or "https://openrouter.ai/api/v1"
+            elif self.provider == "fireworks":
+                self.model = model or "accounts/fireworks/models/llama-v3p1-70b-instruct"
+                actual_base_url = base_url or "https://api.fireworks.ai/inference/v1"
+            elif self.provider == "xai":
+                self.model = model or "grok-2-latest"
+                actual_base_url = base_url or "https://api.x.ai/v1"
+            elif self.provider == "deepseek":
+                self.model = model or "deepseek-chat"
+                actual_base_url = base_url or "https://api.deepseek.com"
+            elif self.provider == "moonshot":
+                self.model = model or "kimi-k2.5"
+                actual_base_url = base_url or "https://api.moonshot.ai/v1"
+            elif self.provider == "maritaca":
+                self.model = model or "sabia-3"
+                actual_base_url = base_url or "https://chat.maritaca.ai/api"
+            elif self.provider == "zhipu":
+                self.model = model or "glm-4-plus"
+                actual_base_url = base_url or "https://open.bigmodel.cn/api/paas/v4"
+            
+            self.client = AsyncOpenAI(api_key=api_key, base_url=actual_base_url)
         else:
-            raise ValueError(f"Provider {provider} not supported. Use 'openai', 'gemini', or 'mistral'.")
+            raise ValueError(f"Provider {provider} not supported. Use 'openai', 'openrouter', 'fireworks', 'xai', 'deepseek', 'moonshot', 'maritaca', 'zhipu', 'gemini', or 'mistral'.")
 
         self.email = email
         self.password = password
@@ -78,6 +102,11 @@ class Agent:
                 
                 # 1. Inspect
                 page_info = await self.browser.inspect()
+                
+                # Se a inspeção falhou ou retornou vazio por causa de navegação, tenta de novo uma vez
+                if not page_info.get("interactiveElements") and step_count < self.max_steps:
+                    await asyncio.sleep(1)
+                    page_info = await self.browser.inspect()
                 
                 # 2. Ask AI
                 ai_response = await self._ask_ai(command, page_info)
